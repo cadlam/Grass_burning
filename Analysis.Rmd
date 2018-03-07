@@ -1,0 +1,35 @@
+---
+title: "Grass_burn_analysis"
+author: "Chris Adlam"
+date: "3/6/2018"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+**Design**: Split plot with RCBD as a main plot (just RCBD in first year when burn treatment hasn't been applied)
+
+| Structure | Variable                      | Type        | # levels | Experimental Unit   |
+|-----------|-------------------------------|-------------|----------|---------------------|
+| Treatment | Planting                      | Categorical | 3        | Planting:Block      |
+|           | Burn                          | Categorical | 2        | Burn:Block          |
+|           | Planting:Burning              | Categorical | 6        | Planting:Burn:Block |
+| Design    | Block                         | Categorical | 10       |                     |
+|           | MainPlot                      | Categorical | 20       |                     |
+|           | SubPlot                       | Categorical | 60       |                     |
+|           | Planting:Block                | Categorical | 30       |                     |
+|           | Burn:Block                    | Categorical | 20       |                     |
+|           | Planting:Burn:Block           | Categorical | 60       |                     |
+|           | Burn:MainPlot                 | Categorical | 60       |          ?          |
+|           | Planting:Burn:MainPlot        | Categorical | 60       |                     |
+| Response  | Growth                        | Numeric     | 60       |                     |
+| Response  | Survival                      | Numeric     | 60       |                     |
+
+
+
+```{r}
+
+```
+
