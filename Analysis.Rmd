@@ -9,7 +9,49 @@ output: html_document
 knitr::opts_chunk$set(echo = TRUE)
 ```
 
-**Design**: Split plot with RCBD as a main plot (just RCBD in first year when burn treatment hasn't been applied)
+# Packages
+```{r}
+# Load packages
+library(tidyverse)
+library(emmeans)
+library(lme4)
+library(lmerTest)
+library(pbkrtest)
+library(car)
+```
+
+# Read in data for year 1
+```{r}
+yr1_data <- read.csv("../data/grass_burn_yr1.csv")
+```
+
+
+# Design table year 1: pre-burn treatment
+**Design**: RCBD
+
+| Structure | Variable                      | Type        | # levels | Experimental Unit   |
+|-----------|-------------------------------|-------------|----------|---------------------|
+| Treatment | Planting                      | Categorical | 3        | Planting:Block      |
+| Design    | Block                         | Categorical | 20       |                     |
+|           | Planting:Block                | Categorical | 60       |                     |
+| Response  | Growth                        | Numeric     | 60       |                     |
+| Response  | Survival                      | Numeric     | 60       |                     |
+
+# Nurse model
+This is to test the effect of the planting treatments (annual grasses and control) on survival and growth of native seedlings during the first year.
+```{r}
+nurse_model <- lm(Growth ~ Planting + Block, yr1_data)
+```
+
+
+# Read in data for year 1
+```{r}
+yr2_data <- read.csv("../data/grass_burn_yr2.csv")
+```
+
+
+# Design table year 2: Planting + Burn
+**Design**: Split plot with RCBD as a main plot
 
 | Structure | Variable                      | Type        | # levels | Experimental Unit   |
 |-----------|-------------------------------|-------------|----------|---------------------|
@@ -20,16 +62,16 @@ knitr::opts_chunk$set(echo = TRUE)
 |           | MainPlot                      | Categorical | 20       |                     |
 |           | SubPlot                       | Categorical | 60       |                     |
 |           | Planting:Block                | Categorical | 30       |                     |
-|           | Burn:Block                    | Categorical | 20       |                     |
-|           | Planting:Burn:Block           | Categorical | 60       |                     |
-|           | Burn:MainPlot                 | Categorical | 60       |          ?          |
-|           | Planting:Burn:MainPlot        | Categorical | 60       |                     |
+|           | Burn:Block (~MainPlot)        | Categorical | 20       |                     |
+|           | Planting:Burn:Block  (SP?)    | Categorical | 60       |                     |
+|           | Burn:MainPlot                 | Categorical | 20       |          ?          |
+|           | Planting:Burn:MainPlot (SP?)  | Categorical | 60       |                     |
 | Response  | Growth                        | Numeric     | 60       |                     |
 | Response  | Survival                      | Numeric     | 60       |                     |
 
 
-
+# Model
 ```{r}
-
+# Note that response is not well defined yet.
 ```
 
