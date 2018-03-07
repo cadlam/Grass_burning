@@ -20,13 +20,13 @@ library(pbkrtest)
 library(car)
 ```
 
-# Read in data for year 1
+# Year 1: effect of planting treatment pre-burn
+## Read in data for year 1
 ```{r}
 yr1_data <- read.csv("../data/grass_burn_yr1.csv")
 ```
 
-
-# Design table year 1: pre-burn treatment
+## Design table year 1: pre-burn treatment
 **Design**: RCBD
 
 | Structure | Variable                      | Type        | # levels | Experimental Unit   |
@@ -37,18 +37,29 @@ yr1_data <- read.csv("../data/grass_burn_yr1.csv")
 | Response  | Growth                        | Numeric     | 60       |                     |
 | Response  | Survival                      | Numeric     | 60       |                     |
 
-# Nurse model
+## Nurse model
 This is to test the effect of the planting treatments (annual grasses and control) on survival and growth of native seedlings during the first year.
 ```{r}
+#Note that the response is not well defined yet.
 nurse_model <- lm(Growth ~ Planting + Block, yr1_data)
 ```
 
+## Anova
+```{r}
+anova(nurse_model)
+```
 
-# Read in data for year 1
+## Pairwise comparisons
+```{r}
+planting_estimates <- emmeans(yr1_model,pairwise~Planting,mode='k')
+summary(planting_estimates$contrasts,infer=T)
+```
+
+
+# Read in data for year 2
 ```{r}
 yr2_data <- read.csv("../data/grass_burn_yr2.csv")
 ```
-
 
 # Design table year 2: Planting + Burn
 **Design**: Split plot with RCBD as a main plot
@@ -73,5 +84,44 @@ yr2_data <- read.csv("../data/grass_burn_yr2.csv")
 # Model
 ```{r}
 # Note that response is not well defined yet.
+burn_model = lmer(Growth ~ Planting*Burn + (1|Block) + (1|Block:Burn) + (1|Block:Planting), yr2_data)
+
+# or should it be 
+#burn_model = lmer(Growth ~ Planting*Burn + Block + (1|Block:Burn) + Block:Planting, yr2_data)
+```
+
+# Diagnostic plots
+
+```{r}
+##Resid v. fitted
+plot(burn_model)
+
+## qq plot
+qqPlot(resid(burn_model))
+
+## approximate S/L plot
+fitted_values = fitted(burn_model)
+abs_sqrt_resids = sqrt(abs(resid(burn_model,scaled=T)))
+plot(abs_sqrt_resids~fitted_values)
+lines(fitted(loess(abs_sqrt_resids~fitted_values)))
+```
+
+# Anova
+```{r}
+anova(burn_model,ddf='Kenward-Roger')  
+```
+
+## Means comparisons
+```{r}
+# If there is an interaction between burn and planting, report simple effects:
+estimates <- emmeans(burn_model,~Burn|Planting,mode = 'k')
+cld(estimates,level = 0.05/3) # adjusted for 3 sets of comparisons (3 Planting treatments)
+
+# or report main effects:
+summary(emmeans(burn_model,pairwise~Burn,mode='k')$contrasts)
+summary(emmeans(burn_model,pairwise~Planting,mode='k')$contrasts)
+
+# or comparisons between all combinations:
+summary(emmeans(burn_model,pairwise~Burn:Planting,mode='k')$contrasts)
 ```
 
