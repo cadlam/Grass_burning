@@ -18,30 +18,128 @@ library(lme4)
 library(lmerTest)
 library(pbkrtest)
 library(car)
+library(ggplot2)
 ```
 
 # Year 1: effect of planting treatment pre-burn
 ## Read in data for year 1
 ```{r}
-yr1_data <- read.csv("../data/grass_burn_yr1.csv")
+yr1_data <- read.csv("data/grass_burn_yr1.csv")
+yr1_data$plot <- as.factor(yr1_data$plot)
+yr1_data$year <- as.factor(yr1_data$year)
+yr1_data$date <- as.factor(yr1_data$date)
+glimpse(yr1_data)
+# Note that blocks are numbered differently in year 1 and year 2, because in year 1 there is no burn treatment, so each "mainplot" is its own block (so there are 20 blocks in year 1 and 10 in year 2). yr1_data has no column for burn or mainplot.
+# Remember to check that all variables are read in correctly and set as factor if necessary.
 ```
+
+## Generating fake data to test code
+```{r}
+C_values <- rnorm(20, mean = 5, sd = 1)
+F_values <- rnorm(20, mean = 9, sd = 1)
+R_values <- rnorm(20, mean = 8, sd = 1)
+
+yr1_data <- yr1_data %>% 
+  arrange(planting) %>% 
+  mutate(Growth = c(C_values, F_values, R_values))
+
+glimpse(yr1_data)
+```
+
+
+
+## Effect of planting date?
+First, may want to see if the different planting dates had an effect. In the data, the date columns is filled with '1' and '2'. '1' is for feb 28th (blocks #1-10), '2' is for mar 7th (blocks #11-20). Here we have the 6 planting*date combinations, with 10 blocks for each date (alternatively, could say 2 replicates of each planting:date combination in 5 blocks).
+
+First let's visualize the planting effect across treatments and dates:
+```{r}
+ggplot(yr1_data,aes(x=block,y=Growth)) + ylab('Planting mean growth') +
+  stat_summary(aes(group=planting,color=planting),fun.y = mean,geom='line') # This calculates the mean of each planting in each block, and connects them with a line
+
+ggplot(yr1_data,aes(x=date,y=Growth)) +
+  stat_summary(aes(group=planting,color=planting),fun.y = mean,geom='line') # This calculates the mean of each planting for each date, and connects them with a line
+```
+
+Design table if we consider each group of plantings separate blocks (20 blocks total):
+| Structure | Variable                      | Type        | # levels | Experimental Unit   |
+|-----------|-------------------------------|-------------|----------|---------------------|
+| Treatment | planting                      | Categorical | 3        | plot                |
+| Treatment | date                          | Categorical | 2        | block               |
+| Treatment | planting:date                 | Categorical | 6        | plot                |
+| Design    | block                         | Categorical | 20       |                     |
+|           | planting:block                | Categorical | 60       |                     |
+|           | date:block                    | Categorical | 20       |                     |
+|           | date:block:planting           | Categorical | 60       |                     |
+|           | plot                          | Categorical | 60       |                     |
+| Response  | Growth                        | Numeric     | 60       |                     |
+| Response  | Survival                      | Numeric     | 60       |                     |
+
+Design table for evaluating planting date effects if we consider 2 replicates of each combination in 5 blocks:
+
+| Structure | Variable                      | Type        | # levels | Experimental Unit   |
+|-----------|-------------------------------|-------------|----------|---------------------|
+| Treatment | planting                      | Categorical | 3        | plot                |
+| Treatment | date                          | Categorical | 2        | block               |
+| Treatment | planting:date                 | Categorical | 6        | plot                |
+| Design    | block                         | Categorical | 10       |                     |
+|           | planting:block                | Categorical | 30       |                     |
+|           | date:block                    | Categorical | 20       |                     |
+|           | date:block:planting           | Categorical | 60       |                     |
+|           | plot                          | Categorical | 60       |                     |
+| Response  | Growth                        | Numeric     | 60       |                     |
+| Response  | Survival                      | Numeric     | 60       |                     |
+
+```{r}
+# As factorial: plot as EU; field not random. This can tell us the effect of block:planting:planting (?)
+date_factorial = lm(Growth ~ date*planting + block,yr1_data)
+
+anova(date_factorial)
+
+date_estimates = emmeans(date_factorial,pairwise~date)
+summary(date_estimates$contrasts,infer=T)
+
+# Or analyze as RCBD with random blocks and replicates of treatments in blocks:
+date_model = lmer(Growth ~ planting*date + (1|block) + (1|planting:block) + (1|date:block), yr1_data)
+
+anova(date_model)
+
+date_estimates <- emmeans(date_model,pairwise~date,mode='k')
+summary(date_estimates$contrasts,infer=T)
+```
+
 
 ## Design table year 1: pre-burn treatment
 **Design**: RCBD
 
 | Structure | Variable                      | Type        | # levels | Experimental Unit   |
 |-----------|-------------------------------|-------------|----------|---------------------|
-| Treatment | Planting                      | Categorical | 3        | Planting:Block      |
-| Design    | Block                         | Categorical | 20       |                     |
-|           | Planting:Block                | Categorical | 60       |                     |
+| Treatment | planting                      | Categorical | 3        | planting:block      |
+| Design    | block                         | Categorical | 20       |                     |
+|           | planting:block                | Categorical | 60       |                     |
 | Response  | Growth                        | Numeric     | 60       |                     |
 | Response  | Survival                      | Numeric     | 60       |                     |
 
 ## Nurse model
 This is to test the effect of the planting treatments (annual grasses and control) on survival and growth of native seedlings during the first year.
+
 ```{r}
-#Note that the response is not well defined yet.
-nurse_model <- lm(Growth ~ Planting + Block, yr1_data)
+# Note that the response is not well defined yet.
+nurse_model <- lm(Growth ~ planting + block, yr1_data)
+
+# Or, with block as random:
+#nurse_model <- lmer(Growth ~ planting + (1|block), yr1_data)
+
+```
+
+## Diagnostic plots
+```{r}
+# First a regular plot to visualize the data (as above):
+ggplot(yr1_data, aes(x = block, y = Growth)) +
+  stat_summary(aes(group=planting,color=planting),fun.y = mean,geom='line')
+
+# Diagnostic plots
+par(mfrow=c(1,2))
+plot(nurse_model,which=2:3)
 ```
 
 ## Anova
@@ -51,48 +149,67 @@ anova(nurse_model)
 
 ## Pairwise comparisons
 ```{r}
-planting_estimates <- emmeans(yr1_model,pairwise~Planting,mode='k')
+planting_estimates <- emmeans(nurse_model,pairwise~planting,mode='k')
 summary(planting_estimates$contrasts,infer=T)
 ```
 
 
-# Read in data for year 2
+# Year 2: effect of burn and planting treatments
+
+## Read in data for year 2
 ```{r}
-yr2_data <- read.csv("../data/grass_burn_yr2.csv")
+yr2_data <- read.csv("data/grass_burn_yr2.csv")
+yr2_data$plot <- as.factor(yr2_data$plot)
+yr2_data$subplot <- as.factor(yr2_data$subplot)
+yr2_data$year <- as.factor(yr2_data$year)
+# Note that blocks are numbered differently in year 1 and year 2, because in year 1 there is no burn treatment, so each "mainplot" is its own block (so there are 20 blocks in year 1 and 10 in year 2).
+# Also date of planting is not included in year 2, but now we have mainplot and subplot.
 ```
 
-# Design table year 2: Planting + Burn
+## Generating fake data to test code
+```{r}
+C_values <- rnorm(20, mean = 5, sd = 1)
+F_values <- rnorm(20, mean = 9, sd = 1)
+R_values <- rnorm(20, mean = 8, sd = 1)
+
+yr2_data <- yr2_data %>% 
+  arrange(planting) %>% 
+  mutate(Growth = c(C_values, F_values, R_values))
+
+glimpse(yr2_data)
+```
+
+## Design table year 2: planting + burn
 **Design**: Split plot with RCBD as a main plot
 
 | Structure | Variable                      | Type        | # levels | Experimental Unit   |
 |-----------|-------------------------------|-------------|----------|---------------------|
-| Treatment | Planting                      | Categorical | 3        | Planting:Block      |
-|           | Burn                          | Categorical | 2        | Burn:Block          |
-|           | Planting:Burning              | Categorical | 6        | Planting:Burn:Block |
-| Design    | Block                         | Categorical | 10       |                     |
+| Treatment | planting                      | Categorical | 3        | planting:block      |
+|           | burn                          | Categorical | 2        | burn:block          |
+|           | planting:burning              | Categorical | 6        | planting:burn:block |
+| Design    | block                         | Categorical | 10       |                     |
 |           | MainPlot                      | Categorical | 20       |                     |
 |           | SubPlot                       | Categorical | 60       |                     |
-|           | Planting:Block                | Categorical | 30       |                     |
-|           | Burn:Block (~MainPlot)        | Categorical | 20       |                     |
-|           | Planting:Burn:Block  (SP?)    | Categorical | 60       |                     |
-|           | Burn:MainPlot                 | Categorical | 20       |          ?          |
-|           | Planting:Burn:MainPlot (SP?)  | Categorical | 60       |                     |
+|           | planting:block                | Categorical | 30       |                     |
+|           | burn:block (~MainPlot)        | Categorical | 20       |                     |
+|           | planting:burn:block  (SP?)    | Categorical | 60       |                     |
+|           | burn:MainPlot                 | Categorical | 20       |          ?          |
+|           | planting:burn:MainPlot (SP?)  | Categorical | 60       |                     |
 | Response  | Growth                        | Numeric     | 60       |                     |
 | Response  | Survival                      | Numeric     | 60       |                     |
 
 
-# Model
+## Model
 ```{r}
 # Note that response is not well defined yet.
-burn_model = lmer(Growth ~ Planting*Burn + (1|Block) + (1|Block:Burn) + (1|Block:Planting), yr2_data)
-
-# or should it be 
-#burn_model = lmer(Growth ~ Planting*Burn + Block + (1|Block:Burn) + Block:Planting, yr2_data)
+burn_model = lmer(Growth ~ planting*burn + block + (1|mainplot) + block:planting, yr2_data)
 ```
 
-# Diagnostic plots
-
+## Diagnostic plots
 ```{r}
+# Interaction plot
+ggplot(yr2_data, aes(x=block,y=Growth)) + geom_line(aes(group = interaction(planting,burn),color = interaction(planting,burn)))
+
 ##Resid v. fitted
 plot(burn_model)
 
@@ -104,24 +221,65 @@ fitted_values = fitted(burn_model)
 abs_sqrt_resids = sqrt(abs(resid(burn_model,scaled=T)))
 plot(abs_sqrt_resids~fitted_values)
 lines(fitted(loess(abs_sqrt_resids~fitted_values)))
+
+## qqplot for random effect
+qqPlot(ranef(burn_model)$`mainplot`[,1])
 ```
 
-# Anova
+## Anova
 ```{r}
 anova(burn_model,ddf='Kenward-Roger')  
 ```
 
 ## Means comparisons
 ```{r}
+# All means estimates
+estimates <- emmeans(burn_model,~planting:burn,mode='k')
+cld(estimates)
+
+# or:
+estimates = emmeans(burn_model,~planting|burn,mode = 'k')
+cld(estimates,level = 0.05/3) # adjusted for 4 sets of comparisons (4 planting trts)
+
+# Note that is any of the treatments are not significant, they can be averaged and the data analyzed like a simple RCBD. For example, if burning doesn't have a detectable effect:
+## average planting treatments:
+planting_data <- aggregate(Growth~planting+block,yr2_data,mean)
+str(planting_data)
+## Model with planting treatments averaged:
+planting_avg_model <- lm(Growth~planting+block, planting_data)
+anova(planting_avg_model)
+## Mean differences:
+planting_differences <- emmeans(planting_avg_model,pairwise~planting,mode='k')
+summary(planting_differences$contrasts, infer = T)
+
+## Or if planting has no effect:
+burn_data <- aggregate(Growth~mainplot+burn+block,yr2_data,mean)
+str(burn_data)
+
+# Model with burn treatments averaged (straightforward RCBD with block as fixed):
+burn_avg_model_fixed <- lm(Growth~planting + block, planting_data)
+anova(burn_avg_model_fixed)
+
+## Mean differences
+burn_differences <- emmeans(burn_avg_model_fixed,pairwise~burn,mode='k')
+summary(burn_differences$contrasts, infer = T)
+
+## Or just make a model ignoring planting (maybe?):
+##subplot_model_fixed = lmer(Growth ~ block + (1|mainplot) + burn + burn:block,yr2_data)
+##anova(subplot_model_fixed,ddf='k')
+```
+
+## Reporting effects
+```{r}
 # If there is an interaction between burn and planting, report simple effects:
-estimates <- emmeans(burn_model,~Burn|Planting,mode = 'k')
-cld(estimates,level = 0.05/3) # adjusted for 3 sets of comparisons (3 Planting treatments)
+estimates <- emmeans(burn_model,~burn|planting,mode = 'k')
+cld(estimates,level = 0.05/3) # adjusted for 3 sets of comparisons (3 planting treatments)
 
 # or report main effects:
-summary(emmeans(burn_model,pairwise~Burn,mode='k')$contrasts)
-summary(emmeans(burn_model,pairwise~Planting,mode='k')$contrasts)
+summary(emmeans(burn_model,pairwise~burn,mode='k')$contrasts)
+summary(emmeans(burn_model,pairwise~planting,mode='k')$contrasts)
 
 # or comparisons between all combinations:
-summary(emmeans(burn_model,pairwise~Burn:Planting,mode='k')$contrasts)
+summary(emmeans(burn_model,pairwise~burn:planting,mode='k')$contrasts)
 ```
 
