@@ -159,9 +159,11 @@ summary(planting_estimates$contrasts,infer=T)
 ## Read in data for year 2
 ```{r}
 yr2_data <- read.csv("data/grass_burn_yr2.csv")
-yr2_data$plot <- as.factor(yr2_data$plot)
 yr2_data$subplot <- as.factor(yr2_data$subplot)
-yr2_data$year <- as.factor(yr2_data$year)
+yr2_data$block <- as.factor(yr2_data$block)
+
+#need to fix subplot
+
 # Note that blocks are numbered differently in year 1 and year 2, because in year 1 there is no burn treatment, so each "mainplot" is its own block (so there are 20 blocks in year 1 and 10 in year 2).
 # Also date of planting is not included in year 2, but now we have mainplot and subplot.
 ```
@@ -199,16 +201,37 @@ glimpse(yr2_data)
 | Response  | Survival                      | Numeric     | 60       |                     |
 
 
+```{r}
+# summarize data
+data_summary <- function(data, varname, groupnames){
+  require(plyr)
+  summary_func <- function(x, col){
+    c(mean = mean(x[[col]], na.rm=TRUE),
+      sd = sd(x[[col]], na.rm=TRUE))
+  }
+  data_sum<-ddply(data, groupnames, .fun=summary_func,
+                  varname)
+  data_sum <- rename(data_sum, c("mean" = varname))
+ return(data_sum)
+}
+
+df <- data_summary(yr2_data, varname="LB_num", groupnames="planting")
+df
+```
+
+
 ## Model
 ```{r}
 # Note that response is not well defined yet.
-burn_model = lmer(Growth ~ planting*burn + block + (1|mainplot) + block:planting, yr2_data)
+burn_model = lmer(AM_num ~ planting*burn + block + (1|mainplot) + block:planting, yr2_data[-c(32:61),])
+
+burn_model = lmer(LB_num ~ planting*burn + (1|block) + (1|burn:block) + (1|block:planting), yr2_data[-c(32:61),])
 ```
 
 ## Diagnostic plots
 ```{r}
 # Interaction plot
-ggplot(yr2_data, aes(x=block,y=Growth)) + geom_line(aes(group = interaction(planting,burn),color = interaction(planting,burn)))
+ggplot(yr2_data[-c(32:61),], aes(x=block,y=LB_num)) + geom_line(aes(group = interaction(planting,burn),color = interaction(planting,burn)))
 
 ##Resid v. fitted
 plot(burn_model)
@@ -233,6 +256,7 @@ anova(burn_model,ddf='Kenward-Roger')
 
 ## Means comparisons
 ```{r}
+
 # All means estimates
 estimates <- emmeans(burn_model,~planting:burn,mode='k')
 cld(estimates)
@@ -243,21 +267,21 @@ cld(estimates,level = 0.05/3) # adjusted for 4 sets of comparisons (4 planting t
 
 # Note that is any of the treatments are not significant, they can be averaged and the data analyzed like a simple RCBD. For example, if burning doesn't have a detectable effect:
 ## average planting treatments:
-planting_data <- aggregate(Growth~planting+block,yr2_data,mean)
+planting_data <- aggregate(AM_num~planting+block,yr2_data,mean)
 str(planting_data)
 ## Model with planting treatments averaged:
-planting_avg_model <- lm(Growth~planting+block, planting_data)
+planting_avg_model <- lm(AM_num~planting+block, planting_data)
 anova(planting_avg_model)
 ## Mean differences:
 planting_differences <- emmeans(planting_avg_model,pairwise~planting,mode='k')
 summary(planting_differences$contrasts, infer = T)
 
 ## Or if planting has no effect:
-burn_data <- aggregate(Growth~mainplot+burn+block,yr2_data,mean)
+burn_data <- aggregate(AM_cov~mainplot+burn+block,yr2_data,mean)
 str(burn_data)
 
 # Model with burn treatments averaged (straightforward RCBD with block as fixed):
-burn_avg_model_fixed <- lm(Growth~planting + block, planting_data)
+burn_avg_model_fixed <- lm(AM_num~planting + block, planting_data)
 anova(burn_avg_model_fixed)
 
 ## Mean differences
